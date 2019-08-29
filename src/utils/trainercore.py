@@ -7,8 +7,8 @@ from collections import OrderedDict
 import numpy
 
 import torch
-
-from larcv import larcv_interface
+## Replace the larcv_interface for queueloader
+from larcv import queueloader
 
 from . import flags
 from . import data_transforms
@@ -29,7 +29,8 @@ class trainercore(object):
 
     '''
     def __init__(self,):
-        self._larcv_interface = larcv_interface.larcv_interface()
+        ## Replace of larcv_interface.larcv_interface() for queueloader.queue_interface()
+        self._larcv_interface = queueloader.queue_interface()
         self._iteration       = 0
         self._global_step     = -1
 
@@ -547,8 +548,9 @@ class trainercore(object):
     def fetch_next_batch(self, mode='primary', metadata=False):
 
         # For the serial mode, call next here:
+        ## We use prepare_next insted of next in queue_interface
         if not FLAGS.DISTRIBUTED:
-            self._larcv_interface.next(mode)
+            self._larcv_interface.prepare_next(mode)
 
         minibatch_data = self._larcv_interface.fetch_minibatch_data(mode, fetch_meta_data=metadata)
         minibatch_dims = self._larcv_interface.fetch_minibatch_dims(mode)
@@ -560,10 +562,17 @@ class trainercore(object):
             minibatch_data[key] = numpy.reshape(minibatch_data[key], minibatch_dims[key])
 
         # Strip off the primary/aux label in the keys:
+ 
+        ## Change in iteration, previous version changed minibatch_date creating an error with label_neut 
+        mylist=[0,0,0,0,0]
+        i=0
         for key in minibatch_data:
-            new_key = key.replace('aux_','')
-            minibatch_data[new_key] = minibatch_data.pop(key)            
+            mylist[i] = key
+            i = i+1
 
+        for key in mylist:
+            new_key = key.replace('aux_','')
+            minibatch_data[new_key] = minibatch_data.pop(key)
 
 
         # Here, do some massaging to convert the input data to another format, if necessary:
